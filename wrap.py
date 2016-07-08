@@ -42,10 +42,9 @@ def xor(x, y):
     result = "".join(map(lambda (xx, yy): chr(ord(xx) ^ ord(yy)), zip(x, y)))
     return result
 
-def disp(array):
-    print map(lambda x : x.encode("hex"), array)
-
 def wrap(K, P):
+    ''' Wrap as specified in https://tools.ietf.org/html/rfc3394
+    '''
     N = len(P)
     s = 6 * N
 
@@ -68,6 +67,8 @@ def wrap(K, P):
     return C
 
 def unwrap(K, C):
+    ''' Unwrap as specified in https://tools.ietf.org/html/rfc3394
+    '''
     N = len(C) - 1
     A = C[0]
     R = C[1:]
@@ -82,13 +83,38 @@ def unwrap(K, C):
 
     return R
 
-KEK = from_hex("000102030405060708090A0B0C0D0E0F")
-key_data = [from_hex("0011223344556677"), from_hex("8899AABBCCDDEEFF")]
+class TestCase(object):
+    def __init__(self, kek, data, output):
+        self.kek = from_hex(kek)
+        self.data = data
+        self.output = []
+        for i in range(0, len(output), 16):
+            self.output.append(from_hex(output[i:i+16]))
 
-wrapped_key = wrap(KEK, key_data)
-print map(lambda x : x.encode("hex").upper(), wrapped_key)
-unwrapped_key = unwrap(KEK, wrapped_key)
-print map(lambda x : x.encode("hex").upper(), unwrapped_key)
+    def run(self):
+        blocks = []
+        for i in range(0, len(self.data), 16):
+            blocks.append(from_hex(self.data[i:i+16]))
+
+        output = wrap(self.kek, blocks)
+        assert self.output == output
+
+        original = unwrap(self.kek, output)
+        assert original == blocks
 
 
+# Test cases from https://tools.ietf.org/html/rfc3394 
+test1 = TestCase("000102030405060708090A0B0C0D0E0F", "00112233445566778899AABBCCDDEEFF", "1FA68B0A8112B447AEF34BD8FB5A7B829D3E862371D2CFE5")
+test2 = TestCase("000102030405060708090A0B0C0D0E0F1011121314151617", "00112233445566778899AABBCCDDEEFF", "96778B25AE6CA435F92B5B97C050AED2468AB8A17AD84E5D")
+test3 = TestCase("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", "00112233445566778899AABBCCDDEEFF", "64E8C3F9CE0F5BA263E9777905818A2A93C8191E7D6E8AE7")
+test4 = TestCase("000102030405060708090A0B0C0D0E0F1011121314151617", "00112233445566778899AABBCCDDEEFF0001020304050607", "031D33264E15D33268F24EC260743EDCE1C6C7DDEE725A936BA814915C6762D2")
+test5 = TestCase("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", "00112233445566778899AABBCCDDEEFF0001020304050607", "A8F9BC1612C68B3FF6E6F4FBE30E71E4769C8B80A32CB8958CD5D17D6B254DA1")
+test6 = TestCase("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", "00112233445566778899AABBCCDDEEFF000102030405060708090A0B0C0D0E0F", "28C9F404C4B810F4CBCCB35CFB87F8263F5786E2D80ED326CBC7F0E71A99F43BFB988B9B7A02DD21")
 
+# No assertions should fail
+test1.run()
+test2.run()
+test3.run()
+test4.run()
+test5.run()
+test6.run()
